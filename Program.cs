@@ -114,13 +114,16 @@ class Program
                         var trustedFileName = Path.GetRandomFileName();
                         var trustedFilePath = Path.Combine(path, trustedFileName);
                         string outputFilePath = trustedFilePath + ".wav"; // путь к выходному файлу
-
+                        Console.WriteLine("outputFilePath: " + outputFilePath);
+                        Debug.WriteLine("outputFilePath: " + outputFilePath);
                         // Create the command string for FFmpeg
                         //###########################################################
                         StringBuilder sbffmpeg = new StringBuilder();
                         sbffmpeg.Append($"{ffmpegExePath} -i ");
                         sbffmpeg.Append(filePath);
-                        sbffmpeg.Append(" -codec:a pcm_alaw -b:a 128k -ac 1 -ar 8000 "); // формат для Whisper
+                        sbffmpeg.Append(" -codec:a pcm_alaw -b:a 128k -ac 1 -ar 8000 "); // формат для Whisper mono
+                        //sbffmpeg.Append(" -c:a adpcm_ima_wav -ac 2 -ar 8000 "); // работает, в постворк IMA-ADPCM 
+                        //sbffmpeg.Append(" -c:a pcm_s16le -ac 2 -ar 8000 -b:a 64k "); // 
                         sbffmpeg.Append(outputFilePath);
 
                         // Run FFmpeg with cmd.exe
@@ -146,36 +149,38 @@ class Program
                         Console.WriteLine("Success to convert file!");
                         Debug.WriteLine("Success to convert file!");
                         // ##############################################################
+                        if (File.Exists(outputFilePath)) { 
+                            byte[] fileData = File.ReadAllBytes(outputFilePath);
+                            //длительность S_DURATION
+                            int duration = (int)(fileData.Length / 8000);
+                            string durationString = string.Format("{0:D2}:{1:D2}:{2:D2}", duration / 3600, (duration % 3600) / 60, duration % 60);
 
-                        byte[] fileData = File.ReadAllBytes(outputFilePath);
-                        //длительность S_DURATION
-                        int duration = (int)(fileData.Length / 8000);
-                        string durationString = string.Format("{0:D2}:{1:D2}:{2:D2}", duration / 3600, (duration % 3600) / 60, duration % 60);
-
-                        //using (var insertCommand = new IBCommand("insert into SPR_SPEECH_TABLE (S_INCKEY, S_TYPE, S_PRELOOKED, S_DATETIME, S_EVENTCODE, S_DEVICEID, S_SYSNUMBER, S_USERNUMBER, S_TALKER, S_DURATION) values (@S_INCKEY, @S_TYPE, @S_PRELOOKED, @S_DATETIME, @S_EVENTCODE, @S_DEVICEID, @S_SYSNUMBER, @S_USERNUMBER, @S_TALKER, @S_DURATION)", connection, transaction))
-                        using (var insertCommand = new IBCommand("insert into SPR_SPEECH_TABLE (S_INCKEY, S_TYPE, S_PRELOOKED, S_DATETIME, S_EVENTCODE, S_DEVICEID, S_DURATION, S_SYSNUMBER, S_USERNUMBER, S_TALKER) values (@S_INCKEY, @S_TYPE, @S_PRELOOKED, @S_DATETIME, @S_EVENTCODE, @S_DEVICEID, @S_DURATION, @S_SYSNUMBER, @S_USERNUMBER, @S_TALKER" +
-                            ")", connection, transaction))
-                        {
-                            insertCommand.Parameters.Add("@S_INCKEY", key);
-                            insertCommand.Parameters.AddWithValue("@S_TYPE", 0);
-                            insertCommand.Parameters.AddWithValue("@S_PRELOOKED", 0);
-                            insertCommand.Parameters.AddWithValue("@S_DATETIME", timestampValue);
-                            insertCommand.Parameters.AddWithValue("@S_SYSNUMBER", IMEI);
-                            insertCommand.Parameters.AddWithValue("@S_USERNUMBER", caller);
-                            insertCommand.Parameters.AddWithValue("@S_TALKER", talker);
-                            insertCommand.Parameters.AddWithValue("@S_DURATION", durationString);
-                            insertCommand.Parameters.AddWithValue("@S_EVENTCODE", "PCMA");
-                            insertCommand.Parameters.AddWithValue("@S_DEVICEID", "APK_SUPERACCESS");
-                            insertCommand.ExecuteNonQuery();
-                        }
-                        // добавляем данные в параметр для поля BLOB в базе данных
-                        using (var insertCommand = new IBCommand("insert into SPR_SP_DATA_1_TABLE (S_INCKEY, S_ORDER, S_FSPEECH, S_RECORDTYPE) values (@S_INCKEY, @S_ORDER, @S_FSPEECH, @S_RECORDTYPE)", connection, transaction))
-                        {
-                            insertCommand.Parameters.Add("@S_INCKEY", key);
-                            insertCommand.Parameters.Add("@S_ORDER", 1);
-                            insertCommand.Parameters.Add("@S_RECORDTYPE", "PCMA");
-                            insertCommand.Parameters.Add("@S_FSPEECH", IBDbType.Array, fileData.Length).Value = fileData;
-                            insertCommand.ExecuteNonQuery();
+                            //using (var insertCommand = new IBCommand("insert into SPR_SPEECH_TABLE (S_INCKEY, S_TYPE, S_PRELOOKED, S_DATETIME, S_EVENTCODE, S_DEVICEID, S_SYSNUMBER, S_USERNUMBER, S_TALKER, S_DURATION) values (@S_INCKEY, @S_TYPE, @S_PRELOOKED, @S_DATETIME, @S_EVENTCODE, @S_DEVICEID, @S_SYSNUMBER, @S_USERNUMBER, @S_TALKER, @S_DURATION)", connection, transaction))
+                            using (var insertCommand = new IBCommand("insert into SPR_SPEECH_TABLE (S_INCKEY, S_TYPE, S_PRELOOKED, S_DATETIME, S_EVENTCODE, S_DEVICEID, S_DURATION, S_SYSNUMBER, S_USERNUMBER, S_TALKER) values (@S_INCKEY, @S_TYPE, @S_PRELOOKED, @S_DATETIME, @S_EVENTCODE, @S_DEVICEID, @S_DURATION, @S_SYSNUMBER, @S_USERNUMBER, @S_TALKER" +
+                                ")", connection, transaction))
+                            {
+                                insertCommand.Parameters.Add("@S_INCKEY", key);
+                                insertCommand.Parameters.AddWithValue("@S_TYPE", 0);
+                                insertCommand.Parameters.AddWithValue("@S_PRELOOKED", 0);
+                                insertCommand.Parameters.AddWithValue("@S_DATETIME", timestampValue);
+                                insertCommand.Parameters.AddWithValue("@S_SYSNUMBER", IMEI);
+                                insertCommand.Parameters.AddWithValue("@S_USERNUMBER", caller);
+                                insertCommand.Parameters.AddWithValue("@S_TALKER", talker);
+                                insertCommand.Parameters.AddWithValue("@S_DURATION", durationString);
+                                insertCommand.Parameters.AddWithValue("@S_EVENTCODE", "PCMA");
+                                insertCommand.Parameters.AddWithValue("@S_DEVICEID", "APK_SUPERACCESS");
+                                insertCommand.ExecuteNonQuery();
+                            }
+                            // добавляем данные в параметр для поля BLOB в базе данных
+                            using (var insertCommand = new IBCommand("insert into SPR_SP_DATA_1_TABLE (S_INCKEY, S_ORDER, S_FSPEECH, S_RECORDTYPE) values (@S_INCKEY, @S_ORDER, @S_FSPEECH, @S_RECORDTYPE)", connection, transaction))
+                            {
+                                insertCommand.Parameters.Add("@S_INCKEY", key);
+                                insertCommand.Parameters.Add("@S_ORDER", 1);
+                                //insertCommand.Parameters.Add("@S_RECORDTYPE", "PCMA");
+                                insertCommand.Parameters.Add("@S_RECORDTYPE", "PCMA");
+                                insertCommand.Parameters.Add("@S_FSPEECH", IBDbType.Array, fileData.Length).Value = fileData;
+                                insertCommand.ExecuteNonQuery();
+                            }
                         }
                     }
                     transaction.Commit();
@@ -220,7 +225,7 @@ class Program
             connection.Close();
             Console.WriteLine("Connection to InterBase closed.");
             // Очистка временной директории
-            DirectoryInfo dirTempInfo = new DirectoryInfo(path);
+            /*DirectoryInfo dirTempInfo = new DirectoryInfo(path);
             if (dirTempInfo.Exists)
             {
                 dirTempInfo.Delete(true);
@@ -229,7 +234,7 @@ class Program
             else
             {
                 Console.WriteLine("Каталог не существует");
-            }
+            }*/
             Console.WriteLine("Press a key twice to exit.");
             Console.ReadKey();
         }
